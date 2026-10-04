@@ -1,0 +1,51 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-internagent}
+      POSTGRES_USER: ${POSTGRES_USER:-internagent}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-local-development-only}
+    ports: ["5432:5432"]
+    volumes: ["postgres-data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    volumes: ["redis-data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  api:
+    build: ./api
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://internagent:local-development-only@db:5432/internagent}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-replace-me-for-local-only}
+    ports: ["8000:8000"]
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+  worker:
+    build: ./api
+    command: celery -A app.scheduler.celery_app worker --loglevel=info
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://internagent:local-development-only@db:5432/internagent}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-replace-me-for-local-only}
+    depends_on:
+      redis: { condition: service_healthy }
+  frontend:
+    build: ./frontend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api/v1}
+    ports: ["3000:3000"]
+    depends_on: [api]
+volumes:
+  postgres-data:
+  redis-data:

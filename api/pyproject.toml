@@ -8,10 +8,16 @@ version = "0.1.0"
 description = "Policy-first internship discovery and application API"
 requires-python = ">=3.12"
 dependencies = [
+  "alembic>=1.14,<2",
   "celery[redis]>=5.4,<6",
+  "cryptography>=43,<47",
+  "defusedxml>=0.7,<1",
+  "email-validator>=2.2,<3",
   "fastapi>=0.115,<1",
   "pydantic-settings>=2.6,<3",
   "psycopg[binary]>=3.2,<4",
+  "pypdf>=6.18,<7",
+  "python-multipart>=0.0.20,<1",
   "sqlalchemy>=2.0,<3",
   "uvicorn[standard]>=0.32,<1",
 ]
@@ -24,13 +30,16 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-q"
 
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+extend-exclude = ["alembic"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501", "UP046"]
 
 [tool.mypy]
 python_version = "3.12"

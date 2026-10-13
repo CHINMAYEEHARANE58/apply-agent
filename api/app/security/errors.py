@@ -30,5 +30,10 @@ async def validation_exception_handler(_: Request, exc: Exception) -> JSONRespon
     return error_response(422, "validation_error", "Request validation failed.", jsonable_encoder(exc.errors()))
 
 
+async def database_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+    # Do not log/serialize database exceptions: bind parameters may contain PII.
+    return error_response(503, "database_unavailable", "Unable to access your data. Please try again.")
+
+
 def not_found(entity: str) -> HTTPException:
     return HTTPException(status_code=404, detail=f"{entity} was not found.")

@@ -20,13 +20,22 @@ class Application(Base):
     __tablename__ = "applications"
     __table_args__ = (
         UniqueConstraint("user_id", "job_id", name="uq_applications_user_job"),
-        CheckConstraint("status IN ('discovered', 'matched', 'prepared', 'awaiting_approval', 'submitted', 'assessment', 'interview', 'rejected', 'offer', 'withdrawn')", name="ck_applications_status"),
+        CheckConstraint(
+            "status IN ('discovered', 'matched', 'prepared', 'awaiting_approval', 'submitted', 'assessment', 'interview', 'rejected', 'offer', 'withdrawn')",
+            name="ck_applications_status",
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    job_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("jobs.id", ondelete="RESTRICT"), nullable=False, index=True)
-    resume_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("resumes.id", ondelete="SET NULL"))
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("jobs.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    resume_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("resumes.id", ondelete="SET NULL")
+    )
     status: Mapped[str] = mapped_column(String(32), default="discovered", nullable=False)
     cover_letter: Mapped[str | None] = mapped_column(Text)
     application_message: Mapped[str | None] = mapped_column(Text)

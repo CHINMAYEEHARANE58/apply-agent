@@ -15,6 +15,9 @@ class InternshipPreferenceUpsert(APIModel):
     roles: list[str] = Field(default_factory=list, max_length=50)
     skills: list[str] = Field(default_factory=list, max_length=100)
     preferred_locations: list[str] = Field(default_factory=list, max_length=100)
+    preferred_countries: list[str] = Field(default_factory=list, max_length=100)
+    preferred_states: list[str] = Field(default_factory=list, max_length=100)
+    preferred_cities: list[str] = Field(default_factory=list, max_length=100)
     remote_allowed: bool = True
     hybrid_allowed: bool = True
     onsite_allowed: bool = False
@@ -32,12 +35,19 @@ class InternshipPreferenceUpsert(APIModel):
     excluded_keywords: list[str] = Field(default_factory=list, max_length=100)
     max_daily_applications: int = Field(default=5, ge=0, le=50)
     application_mode: ApplicationMode = "review"
+    minimum_match_score: int = Field(default=75, ge=0, le=100)
+    search_enabled: bool = True
+    preferred_search_time: str | None = Field(default=None, pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
 
     @model_validator(mode="after")
     def validate_ranges(self) -> "InternshipPreferenceUpsert":
         if self.min_duration and self.max_duration and self.min_duration > self.max_duration:
             raise ValueError("min_duration must be less than or equal to max_duration.")
-        if self.earliest_start_date and self.latest_start_date and self.earliest_start_date > self.latest_start_date:
+        if (
+            self.earliest_start_date
+            and self.latest_start_date
+            and self.earliest_start_date > self.latest_start_date
+        ):
             raise ValueError("earliest_start_date must not be after latest_start_date.")
         return self
 

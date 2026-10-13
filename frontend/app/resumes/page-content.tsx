@@ -1,0 +1,16 @@
+"use client";
+
+import { Download, FileText, MoreHorizontal, Plus, ShieldCheck, Sparkles } from "lucide-react";
+import { AppShell } from "../../components/app-shell";
+import { PageHeader } from "../../components/page-header";
+import { Badge } from "../../components/ui/badge";
+import { Button } from "../../components/ui/button";
+import { resumes } from "../../lib/mock-data";
+
+export default function ResumesPage() {
+  const master = resumes.find(resume => resume.kind === "Master"); const tailored = resumes.filter(resume => resume.kind === "Tailored");
+  return <AppShell><PageHeader eyebrow="Documents" title="Your resumes" description="Keep one source-of-truth resume and review tailored versions before using them in an application." actions={<Button variant="outline"><Plus size={16} />Upload master resume</Button>} />
+    <section className="mt-8"><div className="mb-4 flex items-center gap-2"><h2 className="font-semibold text-white">Master resume</h2><Badge className="border-emerald-500/25 bg-emerald-500/10 text-emerald-300">Source of truth</Badge></div>{master ? <div className="rounded-2xl border border-violet-500/25 bg-gradient-to-r from-violet-500/[0.09] to-slate-900/45 p-5"><div className="flex flex-col gap-5 sm:flex-row sm:items-center"><div className="grid h-12 w-12 place-items-center rounded-xl bg-violet-500/15 text-violet-300"><FileText size={22} /></div><div className="min-w-0 flex-1"><p className="truncate font-medium text-white">{master.name}</p><p className="mt-1 text-sm text-slate-400">{master.updatedAt} <span className="px-1">·</span>{master.targetedRole}</p></div><div className="flex gap-2"><Button variant="outline" size="sm"><Download size={14} />Download</Button><Button variant="secondary" size="sm">Replace</Button></div></div><div className="mt-5 flex items-center gap-2 border-t border-violet-500/15 pt-4 text-xs text-slate-400"><ShieldCheck size={14} className="text-emerald-400" />Resume content is used only to prepare application materials; it is never exposed through storage URLs.</div></div> : null}</section>
+    <section className="mt-10"><div className="mb-4 flex items-center justify-between"><div><h2 className="font-semibold text-white">Tailored resumes</h2><p className="mt-1 text-sm text-slate-500">Prepared from your master resume for specific opportunities.</p></div><Button size="sm"><Sparkles size={14} />Create tailored version</Button></div><div className="grid gap-4 lg:grid-cols-2">{tailored.map(resume => <article key={resume.id} className="rounded-2xl border border-slate-800/80 bg-slate-900/45 p-5"><div className="flex items-start gap-3"><div className="grid h-10 w-10 place-items-center rounded-xl bg-slate-800 text-slate-300"><FileText size={19} /></div><div className="min-w-0 flex-1"><p className="truncate font-medium text-white">{resume.name}</p><p className="mt-1 text-sm text-slate-400">{resume.targetedRole}</p><p className="mt-3 text-xs text-slate-600">{resume.updatedAt}</p></div><button aria-label="Resume options" className="text-slate-500 hover:text-white"><MoreHorizontal size={19} /></button></div><div className="mt-5 flex gap-2"><Button variant="outline" size="sm" className="flex-1">Review changes</Button><Button variant="ghost" size="sm"><Download size={14} /></Button></div></article>)}</div></section>
+  </AppShell>;
+}

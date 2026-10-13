@@ -9,9 +9,23 @@ from sqlalchemy.pool import StaticPool
 
 import app.models  # noqa: F401
 from app.config.database import Base, get_session
-from app.config.settings import get_settings
+from app.config.settings import Settings, get_settings
 from app.main import app
 from app.resumes.storage import private_resume_storage
+
+
+@pytest.fixture(autouse=True)
+def isolated_test_configuration(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    # A developer's Neon migration URL must never redirect SQLite tests to
+    # their cloud database. Integration tests need a separate opt-in database.
+    monkeypatch.setenv("DATABASE_URL", "sqlite://")
+    monkeypatch.setenv("DATABASE_DIRECT_URL", "")
+    monkeypatch.setenv("AUTH_PROVIDER", "development")
+    monkeypatch.setenv("APP_ENVIRONMENT", "test")
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture
@@ -21,6 +35,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
     test_session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     original_storage_root = private_resume_storage.root
     monkeypatch.setenv("APP_ENVIRONMENT", "test")
+    monkeypatch.setenv("AUTH_PROVIDER", "development")
     monkeypatch.setenv("APP_ENCRYPTION_KEY", "test-only-resume-encryption-secret-at-least-32-chars")
     get_settings.cache_clear()
     private_resume_storage.root = tmp_path / "private-resumes"
@@ -35,7 +50,7 @@ def client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generator[TestCli
     app.dependency_overrides[get_session] = override_get_session
     app.state.test_session_factory = test_session
     try:
-        with TestClient(app) as test_client:
+        with TestClient(app, base_url="https://testserver") as test_client:
             yield test_client
     finally:
         app.dependency_overrides.clear()

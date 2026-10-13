@@ -137,10 +137,10 @@ class Resume(Base):
     parsed_resume_encrypted: Mapped[str | None] = mapped_column(Text)
     version: Mapped[int] = mapped_column(default=1, nullable=False)
     source_resume_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("resumes.id", ondelete="SET NULL")
+        Uuid(as_uuid=True), ForeignKey("resumes.id", ondelete="SET NULL"), index=True
     )
     supersedes_resume_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid(as_uuid=True), ForeignKey("resumes.id", ondelete="SET NULL")
+        Uuid(as_uuid=True), ForeignKey("resumes.id", ondelete="SET NULL"), index=True
     )
     source_of_truth_locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     original_filename: Mapped[str | None] = mapped_column(String(255))
@@ -169,6 +169,7 @@ class Resume(Base):
 class ResumeFactRecord(Base):
     __tablename__ = "resume_facts"
     __table_args__ = (
+        Index("ix_resume_facts_user_category", "user_id", "category"),
         UniqueConstraint(
             "resume_id",
             "category",

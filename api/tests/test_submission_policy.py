@@ -8,7 +8,7 @@ def source(**overrides: object) -> SourceCapability:
         "discovery_supported": True,
         "discovery_method": DiscoveryMethod.API,
         "application_supported": True,
-        "application_method": ApplicationMethod.AUTHORIZED_API,
+        "application_method": ApplicationMethod.API,
         "messaging_supported": False,
         "requires_user_confirmation": False,
         "authorization_verified": True,
@@ -18,12 +18,20 @@ def source(**overrides: object) -> SourceCapability:
 
 
 def test_unverified_source_can_never_submit() -> None:
-    result = evaluate_submission_policy(source(authorization_verified=False))
+    result = evaluate_submission_policy(
+        source(
+            authorization_verified=False,
+            application_supported=False,
+            application_method=ApplicationMethod.MANUAL,
+        )
+    )
     assert result.decision == SubmissionDecision.ASSISTED_MANUAL
 
 
 def test_source_without_application_capability_is_manual() -> None:
-    result = evaluate_submission_policy(source(application_supported=False))
+    result = evaluate_submission_policy(
+        source(application_supported=False, application_method=ApplicationMethod.MANUAL)
+    )
     assert result.decision == SubmissionDecision.ASSISTED_MANUAL
 
 

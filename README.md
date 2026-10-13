@@ -1,6 +1,6 @@
 # InternAgent
 
-InternAgent is a policy-first internship discovery and application assistant. This repository currently contains the foundation, Phase 1 UI, Phase 2 persistence APIs, and Phase 3 secure resume processing—not job-site automation or AI workflows.
+InternAgent is a policy-first internship discovery and application assistant. This repository currently contains the foundation, Phase 1 UI, Phase 2 persistence APIs, Phase 3 secure resume processing, and safe Phase 4–7 service foundations—not job-site automation or application-submission integrations.
 
 ## Safety guarantees
 
@@ -27,9 +27,11 @@ InternAgent is a policy-first internship discovery and application assistant. Th
 
 ## Local development
 
-1. Copy `.env.example` to `.env`; replace the development values.
+1. Copy `.env.example` to `.env` only if one does not already exist; replace the placeholders. Keep both it and `frontend/.env.local` private and gitignored.
 2. Set a strong `APP_ENCRYPTION_KEY` in your environment (it must be at least 32 characters).
-3. Run `docker compose up --build`. The one-shot `migrate` service applies Alembic migrations before the API starts.
+3. For local PostgreSQL run `docker compose up --build`. For Neon run
+   `docker compose -f docker-compose.neon.yml up --build`, or use the
+   direct-development instructions below. The one-shot `migrate` service applies Alembic migrations before the API starts.
 
 For a local, non-Docker API process, start the database services first and run
 `cd api && .venv/bin/alembic upgrade head` with both `DATABASE_URL` and
@@ -43,6 +45,57 @@ For direct development:
 cd api && python -m venv .venv && .venv/bin/pip install -e '.[dev]' && .venv/bin/uvicorn app.main:app --reload
 cd frontend && npm install && npm run dev
 ```
+
+## Clerk sign-in + Neon PostgreSQL
+
+The Neon plugin provisioned an **InternAgent** project (`jolly-dew-33263772`),
+`development` branch (`br-dark-butterfly-b3xxl18k`), and `internagent` database
+in Singapore. Its credentials are in the private root `.env`, not source code.
+`DATABASE_URL` uses the pooled host; `DATABASE_DIRECT_URL` uses the direct host
+for Alembic. Both require TLS. SQLAlchemy uses psycopg with connection health checks.
+There is no browser-facing database connection or Neon Data API.
+
+Clerk manages passwords, sign-up, sign-in, OAuth providers, and account sessions.
+InternAgent does not handle or store Clerk passwords. Enable the desired email
+and social sign-in options in your Clerk application's dashboard.
+
+1. Create/select a Clerk app and obtain its keys from **API Keys**.
+2. In `frontend/.env.local` (template: `frontend/.env.example`), set
+   `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` from that same app.
+3. In the root `.env`, set `CLERK_SECRET_KEY` and `CLERK_ISSUER` to that app's
+   exact HTTPS Frontend API URL / JWT issuer (no path). Set
+   `CLERK_AUTHORIZED_PARTIES=["http://localhost:3000"]` for development; use only
+   trusted HTTPS frontend origins in production. Optionally supply a PEM
+   **public** key in `CLERK_JWT_KEY`; otherwise the backend uses the pinned issuer's JWKS.
+4. Keep `AUTH_PROVIDER=clerk`. For Docker also put the publishable key in the
+   root `.env` so Compose can pass it as a build argument (secrets are runtime-only).
+   From `api/`, run `.venv/bin/alembic upgrade head`,
+   then `.venv/bin/uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`.
+   From `frontend/`, run `npm run dev`. Restart/rebuild after changing Clerk keys.
+5. Visit `/sign-up` or `/login`. A verified primary email is required. The first
+   authenticated `/users/me` call creates a stable local UUID bound to the Clerk
+   subject; the dashboard performs that synchronization and shows connection errors.
+
+Each protected page checks sign-in at the server resource (not only via middleware),
+following [Clerk's resource protection guide](https://clerk.com/docs/guides/development/upgrading/upgrade-guides/migrate-from-create-route-matcher).
+The Next.js proxy `/api/backend/*` retrieves the Clerk bearer token server-side,
+checks mutation origins, limits upload buffering, and forwards only allowlisted
+API paths. The FastAPI backend verifies RS256 signatures, issuer, expiry, active
+session claims, and authorized party independently before querying owner-scoped
+records. Browser-supplied UUIDs and emails cannot override the Clerk identity.
+Existing local email accounts are **not** automatically linked; they require an
+explicit authenticated account-migration process.
+
+Without Clerk configuration, public login/sign-up pages show a setup notice,
+protected pages redirect to login, and the API refuses unauthenticated access.
+Never put secret keys, database credentials, or encryption keys in `NEXT_PUBLIC_*`.
+Production must inject secrets through its secret manager and back up the resume
+encryption key; replacing that key makes existing encrypted resumes unreadable.
+
+**Remaining integration work:** onboarding and the jobs/applications/resumes/settings
+screens still use the earlier mocked UI data. Authenticated backend CRUD is persistent,
+but these screens must be wired to `apiFetch` before claiming end-to-end UI persistence.
+The local resume adapter remains encrypted private filesystem storage, not cloud storage.
 
 ## Checks
 
@@ -67,14 +120,26 @@ The API exposes owner-scoped fact provenance at `GET /api/v1/resumes/{resume_id}
 
 The API provides UUID-based CRUD routes for users, profiles, preferences, resumes, jobs, job matches, applications, and audit events. OpenAPI is available at `http://localhost:8000/api/v1/docs`.
 
-All user-owned routes require `X-User-Id: <user UUID>` only in explicitly configured `development` or `test` environments. The service fails closed outside those environments until verified session/OAuth authentication is installed; a deployment must never enable the development header as its identity mechanism. User-owned queries are scoped at the database-query level and are covered by isolation tests.
+All user-owned routes use verified Clerk bearer sessions by default. The legacy
+`X-User-Id: <user UUID>` path is accepted only with **both** `AUTH_PROVIDER=development`
+and `APP_ENVIRONMENT=development|test`; it is rejected in Clerk mode and in production.
+User-owned queries are scoped at the database-query level and covered by isolation tests.
 
-Resumes store only an opaque internal `file_reference`; public storage URLs are rejected and the reference is not serialized in API responses. Jobs are stored as untrusted external content and no job-site adapters or application submitters are included.
+Resumes store only an opaque internal `file_reference`; public storage URLs are rejected and the reference is not serialized in API responses. Jobs are stored as untrusted external content. Only in-memory/mock discovery adapters are included; no job-site browser automation, scraper, credential store, or application submitter is present.
+
+## Discovery, matching, and application-draft foundations
+
+- `app.job_sources.adapters.JobSourceAdapter` is the required four-method contract for future reviewed sources: `search_jobs`, `get_job`, `normalize_job`, and `get_capabilities`. The included development adapters are in-memory mocks only.
+- LinkedIn, Indeed, Glassdoor, and Naukri adapters are deliberately link/manual-discovery adapters. They do not drive a browser, scrape, log in, evade protections, or claim application permission.
+- `NormalizedJob` is the common listing contract. `JobDeduplicator` uses normalized company, title, location, and conservative description similarity; its output carries every original source URL for persistence by a later repository adapter.
+- `app.matching.engine` first enforces hard filters and only then calculates a deterministic 0–100 score. Description text is tokenized as untrusted data and cannot influence policies, permissions, tools, or submission.
+- `app.ai.tailoring` produces a local HTML/PDF preview only after fact-cited bullets pass `verify_tailored_resume`. Low-scoring jobs stop before tailoring; unverifiable output is `REQUIRES_REVIEW`.
+- `app.ai.application_writing` prepares reviewable cover-letter, recruiter-message, and introduction drafts only. It has no send client. A future sender must separately require a verified messaging capability, a user messaging opt-in, and deduplication.
 
 ## Next-stage plan
 
-1. Replace the development identity header with verified session/OAuth authentication and a production managed private-storage adapter with encryption-at-rest and retention controls.
-2. Implement only reviewed, permitted source adapters with normalized storage and idempotent de-duplication.
-3. Add explainable matching plus evidence-bound tailoring and question review.
-4. Build application tracking, authorized submitters, manual-open actions, and notifications.
+1. Configure the Clerk app keys, connect mocked screens to the authenticated API, and add a production managed private-storage adapter with retention controls.
+2. Persist normalized source URLs and idempotent de-duplication results, then add only reviewed, permitted production discovery adapters.
+3. Add authenticated API/UI flows for matching, tailored-resume review, and application-writing drafts.
+4. Build application tracking, authorized submitters, manual-open actions, messaging consent, and notifications.
 5. Add redacted audit logs, threat-model review, Playwright UI journeys, and deployment configuration.

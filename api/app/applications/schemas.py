@@ -6,7 +6,18 @@ from pydantic import Field, model_validator
 
 from app.config.schemas import APIModel
 
-ApplicationStatus = Literal["discovered", "matched", "prepared", "awaiting_approval", "submitted", "assessment", "interview", "rejected", "offer", "withdrawn"]
+ApplicationStatus = Literal[
+    "discovered",
+    "matched",
+    "prepared",
+    "awaiting_approval",
+    "submitted",
+    "assessment",
+    "interview",
+    "rejected",
+    "offer",
+    "withdrawn",
+]
 
 
 class ApplicationCreate(APIModel):

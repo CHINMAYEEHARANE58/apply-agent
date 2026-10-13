@@ -6,9 +6,13 @@ from sqlalchemy import engine_from_config, pool
 import app.models  # noqa: F401
 from app.config.database import Base
 from app.config.settings import get_settings
+from app.config.connection import postgres_connection_url
 
 config = context.config
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+settings = get_settings()
+migration_url = postgres_connection_url(settings.database_direct_url or settings.database_url)
+# ConfigParser interprets '%' in URL-encoded credentials unless escaped.
+config.set_main_option("sqlalchemy.url", migration_url.render_as_string(hide_password=False).replace("%", "%%"))
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 

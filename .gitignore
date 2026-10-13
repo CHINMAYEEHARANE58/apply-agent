@@ -16,3 +16,4 @@ coverage/
 *.tsbuildinfo
 postgres-data/
 redis-data/
+api/.private-resumes/

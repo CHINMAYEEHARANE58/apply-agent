@@ -1,8 +1,10 @@
 FROM node:24-alpine
 WORKDIR /app
-COPY package.json ./
-RUN npm install
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY . .
+ARG NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+ENV NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=$NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 RUN npm run build
 EXPOSE 3000
 CMD ["npm", "run", "start"]

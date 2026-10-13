@@ -48,9 +48,13 @@ class Job(Base):
     currency: Mapped[str | None] = mapped_column(String(3))
     skills: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     posted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    discovered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    discovered_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     fingerprint: Mapped[str] = mapped_column(String(128), nullable=False)
-    matches: Mapped[list[JobMatch]] = relationship(back_populates="job", cascade="all, delete-orphan")
+    matches: Mapped[list[JobMatch]] = relationship(
+        back_populates="job", cascade="all, delete-orphan"
+    )
     applications: Mapped[list[Application]] = relationship(back_populates="job")
 
 
@@ -62,8 +66,12 @@ class JobMatch(Base):
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    job_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     score: Mapped[int] = mapped_column(Integer, nullable=False)
     hard_filter_passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
     matched_skills: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
@@ -71,3 +79,29 @@ class JobMatch(Base):
     explanation: Mapped[str] = mapped_column(Text, nullable=False)
     user: Mapped[User] = relationship(back_populates="matches")
     job: Mapped[Job] = relationship(back_populates="matches")
+
+
+class UserJob(Base):
+    """User-specific state for a globally shared job listing."""
+
+    __tablename__ = "user_jobs"
+    __table_args__ = (UniqueConstraint("user_id", "job_id", name="uq_user_jobs_user_job"),)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("jobs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    saved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    ignored: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    match_score: Mapped[int | None] = mapped_column(Integer)
+    match_explanation: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+    user: Mapped[User] = relationship(back_populates="user_jobs")
+    job: Mapped[Job] = relationship()

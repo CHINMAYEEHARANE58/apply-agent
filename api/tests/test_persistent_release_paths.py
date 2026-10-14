@@ -79,6 +79,18 @@ def test_pipeline_hard_rejections_cannot_reach_tailoring(client, changes):
     assert len(client.get("/api/v1/resumes", headers=auth).json()["items"]) == 1
 
 
+def test_selected_country_cannot_override_a_mandatory_city(client):
+    _, auth = seed(client, location="Mumbai, India", mode="onsite")
+    preference = client.get("/api/v1/preferences/me", headers=auth).json()
+    preference.pop("id")
+    preference.pop("user_id")
+    preference.update(onsite_allowed=True, preferred_locations=[], preferred_countries=["India"], preferred_cities=["Pune"])
+    assert client.put("/api/v1/preferences/me", headers=auth, json=preference).status_code == 200
+    result = client.post("/api/v1/dashboard/search", headers=auth).json()
+    assert result["jobs_evaluated"] == 1
+    assert result["strong_matches"] == result["applications_prepared"] == 0
+
+
 def test_preparation_limit_is_enforced_in_persisted_pipeline(client):
     _, auth = seed(client, jobs=4)
     assert client.put("/api/v1/settings/me", headers=auth, json={"maximum_applications_prepared_daily": 3}).status_code == 200

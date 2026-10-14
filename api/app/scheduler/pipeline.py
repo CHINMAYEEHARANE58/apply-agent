@@ -98,7 +98,6 @@ def _run_daily_search(session: Session, user_id: uuid.UUID, *, now: datetime | N
     profile = session.scalar(select(CandidateProfile).where(CandidateProfile.user_id == user_id))
     facts = fact_store_for_source(master, user_id, session) if master else ResumeFactStore([])
     fields = {field: getattr(preference, field) for field in CandidateMatchingProfile.model_fields if hasattr(preference, field)}
-    fields["preferred_locations"] = list(dict.fromkeys([*preference.preferred_locations, *preference.preferred_cities, *preference.preferred_countries]))
     fields.update(work_authorization=profile.work_authorization if profile else None, minimum_match_score=settings.minimum_match_score)
     candidate = CandidateMatchingProfile(**fields)
     start = datetime.combine(day, time.min, zone).astimezone(UTC)

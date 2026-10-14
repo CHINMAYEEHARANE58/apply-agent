@@ -160,7 +160,7 @@ def approve_package(application_id: uuid.UUID, current_user: CurrentUser, sessio
         raise HTTPException(409, "Preferences and a current job are required for approval.")
     settings = effective_settings(session, current_user.id)
     fields = {field: getattr(preference, field) for field in CandidateMatchingProfile.model_fields if hasattr(preference, field)}
-    fields.update(preferred_locations=list(dict.fromkeys([*preference.preferred_locations, *preference.preferred_cities, *preference.preferred_countries])), work_authorization=profile.work_authorization if profile else None, minimum_match_score=settings.minimum_match_score)
+    fields.update(work_authorization=profile.work_authorization if profile else None, minimum_match_score=settings.minimum_match_score)
     source = master_resume_or_404(resume.source_resume_id, current_user.id, session)
     match = match_internship(canonical_job(job), CandidateMatchingProfile(**fields), fact_store_for_source(source, current_user.id, session))
     if not match.recommended:

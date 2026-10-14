@@ -37,6 +37,12 @@ def test_eligibility_prefix_is_case_insensitive() -> None:
     assert apply_hard_filters(job, _profile(work_authorization="India")).passed
 
 
+def test_country_names_are_whole_terms_not_other_region_prefixes() -> None:
+    job = _job().model_copy(update={"location": "Indianapolis, Indiana, United States", "workplace_type": "onsite"})
+    result = apply_hard_filters(job, _profile(onsite_allowed=True, preferred_countries=["India"]))
+    assert not result.passed and any("country" in reason for reason in result.rejection_reasons)
+
+
 def test_score_ordering_thresholds_and_complete_explanation() -> None:
     high = match_internship(_job(), _profile(), _facts())
     medium = match_internship(_job().model_copy(update={"required_skills": ["Python", "Kubernetes", "AWS"]}), _profile(), _facts())

@@ -116,15 +116,15 @@ Never put secret keys, database credentials, or encryption keys in `NEXT_PUBLIC_
 Production must inject secrets through its secret manager and back up the resume
 encryption key; replacing that key makes existing encrypted resumes unreadable.
 
-**Remaining integration work:** onboarding and the jobs/applications/resumes/settings
-screens still use the earlier mocked UI data. Authenticated backend CRUD is persistent,
-but these screens must be wired to `apiFetch` before claiming end-to-end UI persistence.
-The local resume adapter remains encrypted private filesystem storage, not cloud storage.
+Onboarding and dashboard/jobs/applications/resumes/settings now call the
+authenticated API for persistence and review. Component/API and real backend
+restart tests pass; full live Clerk browser journeys are still unverified.
+The resume adapter remains encrypted private filesystem storage, not cloud storage.
 
 ## Checks
 
 For the complete isolated QA pass (PostgreSQL, Redis worker, browser tests,
-coverage, and known release-contract failures), follow [QA_RUNBOOK.md](QA_RUNBOOK.md).
+coverage, and release-contract verification), follow [QA_RUNBOOK.md](QA_RUNBOOK.md).
 The full backend suite now needs dedicated `TEST_DATABASE_URL` and
 `TEST_REDIS_URL` services; it deliberately fails rather than using a developer's cloud database.
 
@@ -154,21 +154,24 @@ All user-owned routes use verified Clerk bearer sessions by default. The legacy
 and `APP_ENVIRONMENT=development|test`; it is rejected in Clerk mode and in production.
 User-owned queries are scoped at the database-query level and covered by isolation tests.
 
-Resumes store only an opaque internal `file_reference`; public storage URLs are rejected and the reference is not serialized in API responses. Jobs are stored as untrusted external content. Only in-memory/mock discovery adapters are included; no job-site browser automation, scraper, credential store, or application submitter is present.
+Resumes store an opaque internal `file_reference`, never serialized in public
+responses. Authenticated attachment downloads expose no storage URL. Jobs are
+untrusted data. The real stored-catalogue adapter complements development mocks;
+no job-site browser automation, scraper or application submitter is present.
 
 ## Discovery, matching, and application-draft foundations
 
-- `app.job_sources.adapters.JobSourceAdapter` is the required four-method contract for future reviewed sources: `search_jobs`, `get_job`, `normalize_job`, and `get_capabilities`. The included development adapters are in-memory mocks only.
+- `app.job_sources.adapters.JobSourceAdapter` exposes `search_jobs`, `get_job`, `normalize_job`, and `get_capabilities`. Development mocks remain; `StoredCatalogAdapter` reads actual imported database records with manual-only capability.
 - LinkedIn, Indeed, Glassdoor, and Naukri adapters are deliberately link/manual-discovery adapters. They do not drive a browser, scrape, log in, evade protections, or claim application permission.
-- `NormalizedJob` is the common listing contract. `JobDeduplicator` uses normalized company, title, location, and conservative description similarity; its output carries every original source URL for persistence by a later repository adapter.
+- `NormalizedJob` is the common listing contract. Deduplication uses normalized identity and conservative description similarity; the daily repository preserves original source URLs.
 - `app.matching.engine` first enforces hard filters and only then calculates a deterministic 0–100 score. Description text is tokenized as untrusted data and cannot influence policies, permissions, tools, or submission.
 - `app.ai.tailoring` produces a local HTML/PDF preview only after fact-cited bullets pass `verify_tailored_resume`. Low-scoring jobs stop before tailoring; unverifiable output is `REQUIRES_REVIEW`.
 - `app.ai.application_writing` prepares reviewable cover-letter, recruiter-message, and introduction drafts only. It has no send client. A future sender must separately require a verified messaging capability, a user messaging opt-in, and deduplication.
 
 ## Next-stage plan
 
-1. Configure the Clerk app keys, connect mocked screens to the authenticated API, and add a production managed private-storage adapter with retention controls.
-2. Persist normalized source URLs and idempotent de-duplication results, then add only reviewed, permitted production discovery adapters.
-3. Add authenticated API/UI flows for matching, tailored-resume review, and application-writing drafts.
-4. Build application tracking, authorized submitters, manual-open actions, messaging consent, and notifications.
-5. Add redacted audit logs, threat-model review, Playwright UI journeys, and deployment configuration.
+1. Configure dedicated Clerk test keys and verify full authenticated browser journeys; apply reviewed migration0007 to the intended deployment.
+2. Add only reviewed permitted discovery integrations, never unauthorized scraping.
+3. Finish production managed storage/secrets, retention/deletion/export workflows and comprehensive PDF/UI verification.
+4. Add authorized submitters only with durable provider idempotency, atomic quotas and deterministic backend checks; implement messaging consent/dedup and notification delivery.
+5. Resolve development-tool advisories and verify Docker/deployment and broker/outbox recovery before a production-ready claim.

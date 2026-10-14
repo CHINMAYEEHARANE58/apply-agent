@@ -29,6 +29,9 @@ class CandidateMatchingProfile(APIModel):
     # Desired technologies help search, but are not proof of qualifications.
     skills: list[str] = Field(default_factory=list, max_length=200)
     preferred_locations: list[str] = Field(default_factory=list, max_length=100)
+    preferred_countries: list[str] = Field(default_factory=list, max_length=100)
+    preferred_states: list[str] = Field(default_factory=list, max_length=100)
+    preferred_cities: list[str] = Field(default_factory=list, max_length=100)
     remote_allowed: bool = True
     hybrid_allowed: bool = True
     onsite_allowed: bool = False
@@ -82,12 +85,11 @@ def apply_hard_filters(job: NormalizedJob, profile: CandidateMatchingProfile) ->
         reasons.append("Hybrid work is not allowed by the candidate preference.")
     if job.workplace_type == "onsite" and not profile.onsite_allowed:
         reasons.append("Onsite work is not allowed by the candidate preference.")
-    if profile.preferred_locations and job.workplace_type != "remote":
+    if job.workplace_type != "remote":
         normalized_location = normalized_text(job.location)
-        if not normalized_location or not any(
-            normalized_text(location) in normalized_location for location in profile.preferred_locations
-        ):
-            reasons.append("The job location is outside the mandatory location preference.")
+        for group, choices in [("location", profile.preferred_locations), ("country", profile.preferred_countries), ("state", profile.preferred_states), ("city", profile.preferred_cities)]:
+            if choices and (not normalized_location or not any(normalized_text(choice) and f" {normalized_text(choice)} " in f" {normalized_location} " for choice in choices)):
+                reasons.append(f"The job location does not establish the mandatory {group} preference.")
 
     if job.internship_duration is not None:
         duration = _duration_in_profile_unit(job.internship_duration.value, job.internship_duration.unit, profile.duration_unit)

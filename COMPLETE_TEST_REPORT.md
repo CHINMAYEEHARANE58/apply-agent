@@ -58,7 +58,7 @@ not counted as passing or skipped.
 | Source and built-browser secret scan | PASS, no findings |
 | Both Docker Compose config --quiet | PASS, resolved secrets not printed |
 | Docker image builds | NOT VERIFIED: daemon socket unavailable |
-| Native production-mode API and beat startup | Smoke checked separately; not a deployed TLS/identity certification |
+| Native production-mode API and beat startup | PASS startup; plaintext400, forwarded HTTPS health200+HSTS, unauthenticated401; not deployed TLS/identity certification |
 
 Backend app statement coverage: **90.67%**. Frontend configured scope:
 statements **64.00%**, branches **64.98%**, functions **50.00%**, lines **69.11%**.

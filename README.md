@@ -1,5 +1,29 @@
 # InternAgent
 
+## Release-path repair status (2026-10-14)
+
+Persistent dashboard/settings/saved-job APIs and the stored-catalogue daily
+pipeline are implemented; screens now use the authenticated backend. The latest
+clean run passes 284 backend, 33 frontend and 12 browser checks (329 total).
+See [COMPLETE_TEST_REPORT.md](COMPLETE_TEST_REPORT.md) for scope and unverified
+requirements, and [BUG_FIX_REPORT.md](BUG_FIX_REPORT.md) for fixes.
+
+Migration `20261014_0007` adds scheduler state/limits, discovery metadata and
+timestamps. It has been tested on disposable PostgreSQL but has not changed
+your normal Neon database; review/apply it to the intended deployment before
+using these endpoints there. Historical cadence remains unknown rather than
+invented. Existing master versions and user choices are preserved.
+
+Discovery currently processes legitimately imported catalogue records. It does
+not fetch job websites. Strong matches become fact-checked drafts awaiting user
+review; all external submissions remain disabled, including authorized-auto
+mode until a reviewed integration exists. Summaries are stored, not emailed.
+Production API limits now require shared Redis and fail closed on Redis failure.
+
+Live Clerk, Docker/deployment, managed secrets and remaining dev-tool advisories
+still prevent a production-ready claim. Configure dedicated test keys privately
+in `.env.qa` using [QA_RUNBOOK.md](QA_RUNBOOK.md); never paste secrets into chat.
+
 InternAgent is a policy-first internship discovery and application assistant. This repository currently contains the foundation, Phase 1 UI, Phase 2 persistence APIs, Phase 3 secure resume processing, and safe Phase 4–7 service foundations—not job-site automation or application-submission integrations.
 
 ## Safety guarantees
@@ -98,6 +122,11 @@ but these screens must be wired to `apiFetch` before claiming end-to-end UI pers
 The local resume adapter remains encrypted private filesystem storage, not cloud storage.
 
 ## Checks
+
+For the complete isolated QA pass (PostgreSQL, Redis worker, browser tests,
+coverage, and known release-contract failures), follow [QA_RUNBOOK.md](QA_RUNBOOK.md).
+The full backend suite now needs dedicated `TEST_DATABASE_URL` and
+`TEST_REDIS_URL` services; it deliberately fails rather than using a developer's cloud database.
 
 ```bash
 cd api && .venv/bin/ruff check . && .venv/bin/mypy app && .venv/bin/pytest

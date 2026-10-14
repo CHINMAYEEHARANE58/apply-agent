@@ -29,7 +29,7 @@ def test_clerk_migration_preserves_existing_accounts_and_profiles(
         assert connection.scalar(sa.text("SELECT clerk_user_id FROM users")) is None
         assert connection.scalar(sa.text("SELECT full_name FROM candidate_profiles")) == "Legacy Candidate"
         assert connection.scalar(sa.text("SELECT created_at FROM candidate_profiles")) is not None
-        assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "20261010_0006"
+        assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == "20261014_0007"
     indexes = sa.inspect(engine).get_indexes("users")
     assert any(index["name"] == "ix_users_clerk_user_id" and index["unique"] for index in indexes)
     command.check(config)

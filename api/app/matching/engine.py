@@ -26,8 +26,7 @@ _COMMON_TERMS = frozenset(
 
 class CandidateMatchingProfile(APIModel):
     roles: list[str] = Field(default_factory=list, max_length=50)
-    # Preferences are a candidate-supplied source of truth alongside resume
-    # facts.  They may improve matching, but never become resume claims.
+    # Desired technologies help search, but are not proof of qualifications.
     skills: list[str] = Field(default_factory=list, max_length=200)
     preferred_locations: list[str] = Field(default_factory=list, max_length=100)
     remote_allowed: bool = True
@@ -107,7 +106,8 @@ def apply_hard_filters(job: NormalizedJob, profile: CandidateMatchingProfile) ->
     if any(normalized_text(company) == normalized_company for company in profile.excluded_companies):
         reasons.append("The company is explicitly excluded.")
     for keyword in profile.excluded_keywords:
-        if keyword.casefold().strip() and keyword.casefold() in f"{job.title} {description}".casefold():
+        term = keyword.casefold().strip()
+        if term and term in f"{job.title} {description}".casefold():
             reasons.append(f"The job contains an excluded keyword: {keyword}.")
             break
 
@@ -127,7 +127,7 @@ def match_internship(
     """Run deterministic filtering first, then score evidence against job data."""
 
     hard_filter = apply_hard_filters(job, profile)
-    candidate_skills = _candidate_skills(facts, profile.skills)
+    candidate_skills = _candidate_skills(facts)
     required = _unique(job.required_skills)
     preferred = _unique(job.preferred_skills)
     matched_skills = [skill for skill in required if _has_skill(skill, candidate_skills)]
@@ -184,9 +184,8 @@ def match_internship(
     )
 
 
-def _candidate_skills(facts: ResumeFactStore, configured_skills: list[str]) -> list[str]:
-    from_facts = [fact.text for fact in facts.facts if fact.category == "skills"]
-    return _unique([*from_facts, *configured_skills])
+def _candidate_skills(facts: ResumeFactStore) -> list[str]:
+    return _unique([fact.text for fact in facts.facts if fact.confidence >= 0.8 and fact.category in {"skills", "experience", "internships", "projects"}])
 
 
 def _unique(values: list[str]) -> list[str]:
@@ -200,8 +199,12 @@ def _unique(values: list[str]) -> list[str]:
 
 
 def _has_skill(skill: str, candidate_skills: list[str]) -> bool:
-    wanted = normalized_text(skill)
-    return any(normalized_text(candidate) == wanted for candidate in candidate_skills)
+    pattern = re.compile(r"(?<![\w+#.])" + re.escape(skill.strip()) + r"(?![\w+#]|\.[\w])", re.IGNORECASE)
+    return any(pattern.search(candidate) is not None for candidate in candidate_skills)
+
+
+def has_verified_skill(skill: str, facts: ResumeFactStore) -> bool:
+    return _has_skill(skill, _candidate_skills(facts))
 
 
 def _ratio_score(matched: int, total: int, weight: int) -> float:
@@ -283,8 +286,8 @@ def _eligibility_clearly_fails(eligibility: list[str], work_authorization: str |
     if not eligibility or not work_authorization:
         return False
     authorization = normalized_text(work_authorization)
-    required = [item.removeprefix("requires:").strip() for item in eligibility if item.casefold().startswith("requires:")]
-    return bool(required) and not any(normalized_text(item) in authorization for item in required)
+    required = [item.partition(":")[2].strip() for item in eligibility if item.casefold().startswith("requires:")]
+    return bool(required) and not all(normalized_text(item) in authorization for item in required)
 
 
 def _contains_untrusted_instruction(description: str) -> bool:

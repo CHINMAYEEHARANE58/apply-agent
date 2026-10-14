@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     Boolean,
@@ -52,6 +52,8 @@ class Job(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     fingerprint: Mapped[str] = mapped_column(String(128), nullable=False)
+    normalized_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    source_urls: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     matches: Mapped[list[JobMatch]] = relationship(
         back_populates="job", cascade="all, delete-orphan"
     )

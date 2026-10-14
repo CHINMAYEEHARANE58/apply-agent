@@ -1,11 +1,13 @@
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app.auth.dependencies import CurrentUser, SessionDep
 from app.config.schemas import Page
+from app.config.settings import get_settings
 from app.jobs.models import Job, JobMatch
 from app.jobs.schemas_v2 import (
     JobCreate,
@@ -18,6 +20,15 @@ from app.jobs.schemas_v2 import (
 from app.security.errors import not_found
 
 router = APIRouter(tags=["jobs"])
+
+
+def require_catalog_writer(_: CurrentUser) -> None:
+    settings = get_settings()
+    if settings.auth_provider != "development" or settings.app_environment not in {"development", "test"}:
+        raise HTTPException(403, "Shared job listings are managed by permitted server integrations.")
+
+
+CatalogWriter = Annotated[None, Depends(require_catalog_writer)]
 
 
 def job_or_404(job_id: uuid.UUID, session: SessionDep) -> Job:
@@ -35,7 +46,7 @@ def owned_match_or_404(match_id: uuid.UUID, user_id: uuid.UUID, session: Session
 
 
 @router.get("/jobs", response_model=Page[JobRead])
-def list_jobs(session: SessionDep, limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0), query: str | None = Query(default=None, min_length=1, max_length=200)) -> Page[JobRead]:
+def list_jobs(_: CurrentUser, session: SessionDep, limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0), query: str | None = Query(default=None, min_length=1, max_length=200)) -> Page[JobRead]:
     where = []
     if query:
         term = f"%{query}%"
@@ -52,7 +63,7 @@ def list_jobs(session: SessionDep, limit: int = Query(20, ge=1, le=100), offset:
 
 
 @router.post("/jobs", response_model=JobRead, status_code=status.HTTP_201_CREATED)
-def create_job(payload: JobCreate, _: CurrentUser, session: SessionDep) -> Job:
+def create_job(payload: JobCreate, _: CatalogWriter, session: SessionDep) -> Job:
     values = payload.model_dump()
     values["job_url"] = str(payload.job_url)
     job = Job(**values)
@@ -67,12 +78,12 @@ def create_job(payload: JobCreate, _: CurrentUser, session: SessionDep) -> Job:
 
 
 @router.get("/jobs/{job_id}", response_model=JobRead)
-def get_job(job_id: uuid.UUID, session: SessionDep) -> Job:
+def get_job(job_id: uuid.UUID, _: CurrentUser, session: SessionDep) -> Job:
     return job_or_404(job_id, session)
 
 
 @router.patch("/jobs/{job_id}", response_model=JobRead)
-def update_job(job_id: uuid.UUID, payload: JobUpdate, _: CurrentUser, session: SessionDep) -> Job:
+def update_job(job_id: uuid.UUID, payload: JobUpdate, _: CatalogWriter, session: SessionDep) -> Job:
     job = job_or_404(job_id, session)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(job, field, value)
@@ -82,7 +93,7 @@ def update_job(job_id: uuid.UUID, payload: JobUpdate, _: CurrentUser, session: S
 
 
 @router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_job(job_id: uuid.UUID, _: CurrentUser, session: SessionDep) -> None:
+def delete_job(job_id: uuid.UUID, _: CatalogWriter, session: SessionDep) -> None:
     session.delete(job_or_404(job_id, session))
     session.commit()
 

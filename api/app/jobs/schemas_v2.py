@@ -38,6 +38,13 @@ class JobUpdate(APIModel):
     skills: list[str] | None = Field(default=None, max_length=100)
     posted_at: datetime | None = None
 
+    @field_validator("skills")
+    @classmethod
+    def skills_cannot_be_null(cls, value: list[str] | None) -> list[str]:
+        if value is None:
+            raise ValueError("Skills cannot be null.")
+        return value
+
 
 class JobRead(APIModel):
     id: uuid.UUID
@@ -73,6 +80,13 @@ class JobMatchUpdate(APIModel):
     matched_skills: list[str] | None = Field(default=None, max_length=100)
     missing_skills: list[str] | None = Field(default=None, max_length=100)
     explanation: str | None = Field(default=None, min_length=1, max_length=10_000)
+
+    @field_validator("score", "hard_filter_passed", "matched_skills", "missing_skills", "explanation")
+    @classmethod
+    def required_values_cannot_be_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("This match field cannot be null.")
+        return value
 
 
 class JobMatchRead(JobMatchCreate):

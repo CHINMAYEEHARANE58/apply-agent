@@ -1,6 +1,7 @@
 import uuid
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import Field, HttpUrl
+from pydantic import Field, HttpUrl, field_validator
 
 from app.config.schemas import APIModel
 
@@ -23,6 +24,16 @@ class CandidateProfileUpsert(APIModel):
     linkedin_url: HttpUrl | None = None
     github_url: HttpUrl | None = None
     portfolio_url: HttpUrl | None = None
+
+    @field_validator("timezone")
+    @classmethod
+    def valid_timezone(cls, value: str | None) -> str | None:
+        if value:
+            try:
+                ZoneInfo(value)
+            except (ValueError, ZoneInfoNotFoundError) as error:
+                raise ValueError("Invalid IANA timezone.") from error
+        return value
 
 
 class CandidateProfileRead(APIModel):

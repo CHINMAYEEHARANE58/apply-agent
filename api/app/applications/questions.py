@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from collections.abc import Mapping
 from typing import Literal
@@ -22,6 +23,7 @@ _STATIC_TOPICS = {
     "salary",
     "notice_period",
     "age",
+    "location",
 }
 
 
@@ -77,8 +79,11 @@ class CandidateAnswerVault:
 
     @staticmethod
     def _topic(value: str) -> str:
-        lowered = value.casefold()
-        if any(word in lowered for word in ("authorized to work", "work authorization")):
+        lowered = " ".join(value.casefold().replace("_", " ").replace("-", " ").split())
+        canonical = {topic.replace("_", " "): topic for topic in _STATIC_TOPICS}
+        if lowered in canonical:
+            return "compensation" if canonical[lowered] == "salary" else canonical[lowered]
+        if any(word in lowered for word in ("authorized to work", "work authorization", "eligible to work", "right to work")):
             return "work_authorization"
         if "sponsor" in lowered or "visa" in lowered:
             return "visa"
@@ -86,14 +91,16 @@ class CandidateAnswerVault:
             return "citizenship"
         if "relocat" in lowered:
             return "relocation"
-        if "start date" in lowered or "available" in lowered:
+        if "start date" in lowered or "available" in lowered or "can you start" in lowered or "can you join" in lowered:
             return "start_date"
-        if "salary" in lowered or "compensation" in lowered or "pay" in lowered:
+        if re.search(r"\b(salary|compensation|pay|stipend)\b", lowered):
             return "compensation"
         if "notice" in lowered:
             return "notice_period"
-        if "age" in lowered:
+        if re.search(r"\bage\b|\bhow old\b|\bdate of birth\b", lowered):
             return "age"
+        if "location" in lowered or "currently based" in lowered or "where do you live" in lowered:
+            return "location"
         return "fact_backed"
 
     @staticmethod

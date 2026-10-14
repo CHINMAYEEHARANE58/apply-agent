@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.config.schemas import APIModel
 
@@ -31,8 +31,8 @@ class ApplicationCreate(APIModel):
 
     @model_validator(mode="after")
     def validate_submission_metadata(self) -> "ApplicationCreate":
-        if self.submitted_at and self.status != "submitted":
-            raise ValueError("submitted_at is only valid when status is submitted.")
+        if self.submitted_at and self.status in {"discovered", "matched", "prepared", "awaiting_approval"}:
+            raise ValueError("Submission dates require a submitted or post-submission status.")
         return self
 
 
@@ -43,6 +43,13 @@ class ApplicationUpdate(APIModel):
     application_message: str | None = Field(default=None, max_length=10_000)
     submitted_at: datetime | None = None
     external_application_id: str | None = Field(default=None, max_length=255)
+
+    @field_validator("status")
+    @classmethod
+    def status_cannot_be_null(cls, value: str | None) -> str:
+        if value is None:
+            raise ValueError("Application status cannot be null.")
+        return value
 
 
 class ApplicationRead(ApplicationCreate):

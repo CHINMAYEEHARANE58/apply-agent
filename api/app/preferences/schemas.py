@@ -27,13 +27,14 @@ class InternshipPreferenceUpsert(APIModel):
     minimum_stipend: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     currency: str | None = Field(default=None, min_length=3, max_length=3)
     allow_unpaid: bool = False
+    compensation_period: Literal["monthly", "hourly"] | None = None
     earliest_start_date: date | None = None
     latest_start_date: date | None = None
     preferred_industries: list[str] = Field(default_factory=list, max_length=50)
     preferred_companies: list[str] = Field(default_factory=list, max_length=100)
     excluded_companies: list[str] = Field(default_factory=list, max_length=100)
     excluded_keywords: list[str] = Field(default_factory=list, max_length=100)
-    max_daily_applications: int = Field(default=5, ge=0, le=50)
+    max_daily_applications: int = Field(default=10, ge=0, le=50)
     application_mode: ApplicationMode = "review"
     minimum_match_score: int = Field(default=75, ge=0, le=100)
     search_enabled: bool = True

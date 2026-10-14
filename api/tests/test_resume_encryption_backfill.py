@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
+from collections.abc import Generator
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -15,6 +16,24 @@ from app.config.settings import get_settings
 from app.security.encryption import decrypt_json, encrypt_json
 
 API_ROOT = Path(__file__).resolve().parents[1]
+
+
+@pytest.fixture(autouse=True)
+def close_backfill_engines(monkeypatch: pytest.MonkeyPatch) -> Generator[None, None, None]:
+    original = sa.create_engine
+    engines: list[sa.Engine] = []
+
+    def tracked_engine(*args, **kwargs):
+        engine = original(*args, **kwargs)
+        engines.append(engine)
+        return engine
+
+    monkeypatch.setattr(sa, "create_engine", tracked_engine)
+    try:
+        yield
+    finally:
+        for engine in engines:
+            engine.dispose()
 
 
 def alembic_config(database_url: str) -> Config:

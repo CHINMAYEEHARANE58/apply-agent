@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -8,9 +8,11 @@ from app.applications.router import router as applications_router
 from app.applications.service import prepare_application
 from app.audit.router import router as audit_router
 from app.config.settings import get_settings
+from app.dashboard.router import router as dashboard_router
 from app.job_sources.registry import source_registry
 from app.job_sources.schemas import SourceCapability
 from app.jobs.router import router as jobs_router
+from app.jobs.state import router as job_state_router
 from app.preferences.router import router as preferences_router
 from app.profiles.router import router as profiles_router
 from app.resumes.processing import MAX_RESUME_UPLOAD_REQUEST_BYTES
@@ -18,11 +20,13 @@ from app.resumes.router import router as resumes_router
 from app.security.errors import (
     database_exception_handler,
     http_exception_handler,
+    response_exception_handler,
     validation_exception_handler,
 )
 from app.security.http import RateLimitMiddleware, SecurityHeadersMiddleware
 from app.security.request_limits import RequestBodyLimitMiddleware
 from app.security.submission_policy import SubmissionDecision
+from app.settings.router import router as settings_router
 from app.users.router import router as users_router
 
 app = FastAPI(
@@ -36,6 +40,7 @@ app = FastAPI(
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 app.add_exception_handler(SQLAlchemyError, database_exception_handler)
+app.add_exception_handler(ResponseValidationError, response_exception_handler)
 settings = get_settings()
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitMiddleware)
@@ -53,11 +58,15 @@ app.add_middleware(
     path="/api/v1/resumes/upload",
     max_bytes=MAX_RESUME_UPLOAD_REQUEST_BYTES,
 )
+app.add_middleware(RequestBodyLimitMiddleware, path=None, exclude_path="/api/v1/resumes/upload", max_bytes=1024 * 1024)
 app.include_router(users_router, prefix="/api/v1")
 app.include_router(profiles_router, prefix="/api/v1")
 app.include_router(preferences_router, prefix="/api/v1")
 app.include_router(resumes_router, prefix="/api/v1")
+app.include_router(job_state_router, prefix="/api/v1")
 app.include_router(jobs_router, prefix="/api/v1")
+app.include_router(settings_router, prefix="/api/v1")
+app.include_router(dashboard_router, prefix="/api/v1")
 app.include_router(applications_router, prefix="/api/v1")
 app.include_router(audit_router, prefix="/api/v1")
 

@@ -14,7 +14,7 @@ from pydantic import Field
 from app.config.schemas import APIModel
 from app.job_sources.schemas import SourceCapability
 from app.jobs.discovery_schemas import NormalizedJob
-from app.matching.engine import MatchResult
+from app.matching.engine import MatchResult, has_verified_skill
 from app.resumes.facts import ResumeFact, ResumeFactStore
 
 
@@ -31,13 +31,16 @@ class ApplicationWritingDraft(APIModel):
 class MessageDeduplicationRegistry:
     """Small deterministic guard; persistent sending must enforce this too."""
 
-    _sent_keys: set[tuple[uuid.UUID, str, str]] = field(default_factory=set)
+    _sent_keys: set[tuple[uuid.UUID, str]] = field(default_factory=set)
 
     def can_send(self, *, user_id: uuid.UUID, job_url: str, recruiter_identity: str) -> bool:
-        return (user_id, job_url.casefold(), recruiter_identity.casefold()) not in self._sent_keys
+        identity = recruiter_identity.strip().casefold()
+        return bool(identity) and (user_id, identity) not in self._sent_keys
 
     def record_sent(self, *, user_id: uuid.UUID, job_url: str, recruiter_identity: str) -> None:
-        self._sent_keys.add((user_id, job_url.casefold(), recruiter_identity.casefold()))
+        identity = recruiter_identity.strip().casefold()
+        if identity:
+            self._sent_keys.add((user_id, identity))
 
 
 def may_send_recruiter_message(
@@ -82,7 +85,10 @@ def generate_application_drafts(
             status="REQUIRES_REVIEW",
             review_reason="No trusted candidate facts are available for a truthful application draft.",
         )
-    skill_text = ", ".join(match.matched_skills[:4]) or "the relevant skills in my background"
+    # Matching preferences are not resume facts. Recheck every candidate skill
+    # before any draft can claim it, even if a supplied match says it is present.
+    verified_skills = [skill for skill in match.matched_skills if has_verified_skill(skill, fact_store)]
+    skill_text = ", ".join(verified_skills[:4]) or "the source-backed experience in my resume"
     evidence = facts[0].text
     requested = ", ".join(job.required_skills[:4]) or "the role requirements"
     name = candidate_name.strip() or "the candidate"
@@ -146,7 +152,7 @@ def _cover_letter(*, name: str, title: str, company: str, skills: str, evidence:
 def _recruiter_message(name: str, title: str, company: str, skills: str, evidence: str) -> str:
     message = (
         f"Hi, I came across the {title} internship at {company}. It aligns with my background in "
-        f"{skills}; my resume includes: {evidence}. I have applied and would appreciate your "
+        f"{skills}; my resume includes: {evidence}. I would welcome the opportunity and appreciate your "
         f"consideration. Thanks, {name}"
     )
     return message[:500]

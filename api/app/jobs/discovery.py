@@ -9,18 +9,16 @@ from dataclasses import dataclass
 
 from app.jobs.discovery_schemas import NormalizedJob
 
-_TOKEN_RE = re.compile(r"[a-z0-9+#.]+")
+_TOKEN_RE = re.compile(r"[^\W_]+(?:[+#.][^\W_]*)*", re.UNICODE)
 _STOP_WORDS = frozenset({"a", "an", "and", "for", "in", "intern", "internship", "of", "the", "to", "with"})
 
 
 def normalized_text(value: str | None) -> str:
-    return " ".join(_TOKEN_RE.findall((value or "").casefold()))
+    return " ".join(token.strip(".") for token in _TOKEN_RE.findall((value or "").casefold()) if token.strip("."))
 
 
 def description_terms(description: str) -> frozenset[str]:
-    return frozenset(
-        term for term in _TOKEN_RE.findall(description.casefold()) if len(term) > 2 and term not in _STOP_WORDS
-    )
+    return frozenset(term for term in normalized_text(description).split() if len(term) > 2 and term not in _STOP_WORDS)
 
 
 def description_similarity(left: str, right: str) -> float:
@@ -49,6 +47,8 @@ def job_fingerprint(job: NormalizedJob) -> str:
 
 
 def are_reasonable_duplicates(left: NormalizedJob, right: NormalizedJob) -> bool:
+    if job_fingerprint(left) == job_fingerprint(right):
+        return True
     if normalized_text(left.company) != normalized_text(right.company):
         return False
     if normalized_text(left.title) != normalized_text(right.title):

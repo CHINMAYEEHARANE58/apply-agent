@@ -1,11 +1,13 @@
+import base64
 import hashlib
 import hmac
 import uuid
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Annotated, Any, cast
+from typing import Annotated, Any, Literal, cast
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import Response
 from pydantic import ValidationError
 from sqlalchemy import func, select, update
 from sqlalchemy.engine import CursorResult
@@ -284,7 +286,7 @@ def verification_for_tailored_resume(
 
 
 def approve_tailored_resume_if_unchanged(
-    tailored_resume: Resume, user_id: uuid.UUID, session: SessionDep
+    tailored_resume: Resume, user_id: uuid.UUID, session: SessionDep, *, commit: bool = True
 ) -> None:
     """Persist approval only if the exact verified encrypted draft is current.
 
@@ -325,8 +327,9 @@ def approve_tailored_resume_if_unchanged(
                 "message": "The tailored resume changed during verification. Review and approve it again.",
             },
         )
-    session.commit()
-    session.refresh(tailored_resume)
+    if commit:
+        session.commit()
+        session.refresh(tailored_resume)
 
 
 def serialize_resume(resume: Resume) -> ResumeRead:
@@ -363,9 +366,12 @@ def _decrypted_master_resume(resume: Resume) -> dict[str, Any] | None:
 
 
 @router.get("", response_model=Page[ResumeRead])
-def list_resumes(current_user: CurrentUser, session: SessionDep, limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0)) -> Page[ResumeRead]:
-    statement = select(Resume).where(Resume.user_id == current_user.id).order_by(Resume.created_at.desc())
-    total = session.scalar(select(func.count()).select_from(Resume).where(Resume.user_id == current_user.id)) or 0
+def list_resumes(current_user: CurrentUser, session: SessionDep, limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0), resume_type: Literal["master", "tailored"] | None = Query(default=None, alias="type")) -> Page[ResumeRead]:
+    where = [Resume.user_id == current_user.id]
+    if resume_type:
+        where.append(Resume.type == resume_type)
+    statement = select(Resume).where(*where).order_by(Resume.created_at.desc(), Resume.version.desc())
+    total = session.scalar(select(func.count()).select_from(Resume).where(*where)) or 0
     items = list(session.scalars(statement.limit(limit).offset(offset)))
     return Page(
         items=[serialize_resume(item) for item in items],
@@ -463,7 +469,7 @@ async def upload_master_resume(
         storage_key = private_resume_storage.save(
             current_user.id, resume_id, processed.extension[1:], content
         )
-    except RuntimeError as error:
+    except (RuntimeError, OSError) as error:
         raise HTTPException(
             status_code=503,
             detail={
@@ -578,6 +584,35 @@ def list_resume_facts(resume_id: uuid.UUID, current_user: CurrentUser, session: 
         limit=limit,
         offset=offset,
     )
+
+
+@router.get("/{resume_id}/download")
+def download_resume(resume_id: uuid.UUID, current_user: CurrentUser, session: SessionDep, format: Literal["pdf", "html"] = "pdf") -> Response:
+    resume = owned_resume_or_404(resume_id, current_user.id, session)
+    try:
+        if resume.type == "master":
+            private_resume_storage.owned_path(resume.file_reference, current_user.id)
+            content = private_resume_storage.read(resume.file_reference)
+            extension = "pdf" if resume.content_type == "application/pdf" else "docx"
+            media_type = resume.content_type or "application/octet-stream"
+        else:
+            verification = verification_for_tailored_resume(resume, ResumeVerificationRequest(), current_user.id, session, require_fact_references=True)
+            if resume.approval_status != "approved" or not verification.approved:
+                raise HTTPException(409, "Review and approve the fact-checked resume before downloading.")
+            payload = decrypt_json(resume.generated_bullets_encrypted or "", purpose=f"resume:{resume.id}:generated-bullets")
+            if format == "html":
+                value = payload.get("resume_html")
+                if not isinstance(value, str):
+                    raise HTTPException(409, "This draft has no rendered artifact. Run a search to prepare one.")
+                content, extension, media_type = value.encode(), "html", "text/html"
+            else:
+                value = payload.get("resume_pdf_base64")
+                if not isinstance(value, str):
+                    raise HTTPException(409, "This draft has no rendered artifact. Run a search to prepare one.")
+                content, extension, media_type = base64.b64decode(value, validate=True), "pdf", "application/pdf"
+    except (OSError, ValueError, RuntimeError) as error:
+        raise HTTPException(503, "Private resume download is temporarily unavailable.") from error
+    return Response(content, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="resume-v{resume.version}.{extension}"', "Cache-Control": "no-store"})
 
 
 @router.post("/{resume_id}/verify", response_model=ResumeVerificationResult)

@@ -16,13 +16,14 @@ class RequestBodyLimitMiddleware:
     ASGI receive chunk for requests without a trustworthy length header.
     """
 
-    def __init__(self, app: ASGIApp, *, path: str, max_bytes: int) -> None:
+    def __init__(self, app: ASGIApp, *, path: str | None, max_bytes: int, exclude_path: str | None = None) -> None:
         self.app = app
         self.path = path
         self.max_bytes = max_bytes
+        self.exclude_path = exclude_path
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or scope.get("path") != self.path:
+        if scope["type"] != "http" or scope.get("path") == self.exclude_path or (self.path is not None and scope.get("path") != self.path):
             await self.app(scope, receive, send)
             return
 
@@ -45,7 +46,7 @@ class RequestBodyLimitMiddleware:
                         status_code=413,
                         detail={
                             "code": "request_body_too_large",
-                            "message": "The uploaded resume must be 5 MB or smaller.",
+                            "message": "The request body is too large.",
                         },
                     )
             return message
@@ -70,7 +71,7 @@ async def _send_body_too_large(scope: Scope, receive: Receive, send: Send) -> No
         content={
             "error": {
                 "code": "request_body_too_large",
-                "message": "The uploaded resume must be 5 MB or smaller.",
+                "message": "The request body is too large.",
             }
         },
     )

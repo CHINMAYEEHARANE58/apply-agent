@@ -57,6 +57,19 @@ class PrivateResumeStorage:
     def delete(self, key: str) -> None:
         self._path_for_key(key).unlink(missing_ok=True)
 
+    def owned_path(self, key: str, user_id: uuid.UUID) -> Path:
+        parts = key.split("/")
+        if len(parts) != 2 or parts[0] != str(user_id):
+            raise ValueError("Private object ownership does not match.")
+        filename = Path(parts[1])
+        uuid.UUID(filename.stem)
+        if filename.suffix not in {".pdf", ".docx"}:
+            raise ValueError("Private object has an unsupported extension.")
+        path = self._path_for_key(key)
+        if path.parent != self.root / str(user_id):
+            raise ValueError("Private object ownership does not match.")
+        return path
+
     def read(self, key: str) -> bytes:
         """Decrypt a private resume for an authorized internal workflow.
 

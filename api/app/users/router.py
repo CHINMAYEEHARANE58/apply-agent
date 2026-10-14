@@ -1,8 +1,11 @@
 from fastapi import APIRouter, HTTPException, status
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 
 from app.auth.dependencies import CurrentUser, SessionDep
 from app.config.settings import get_settings
+from app.resumes.models import Resume
+from app.resumes.storage import private_resume_storage
 from app.users.models import User
 from app.users.schemas import UserCreate, UserRead, UserUpdate
 
@@ -55,5 +58,16 @@ def update_current_user(
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_current_user(current_user: CurrentUser, session: SessionDep) -> None:
-    session.delete(current_user)
-    session.commit()
+    keys = list(session.scalars(select(Resume.file_reference).where(Resume.user_id == current_user.id, Resume.type == "master")))
+    # Validate every object first; no tampered reference may delete another
+    # user's file. DB cascades delete historical lineages together, rather
+    # than ORM per-resume deletes that can trigger immutable FK updates.
+    try:
+        paths = [private_resume_storage.owned_path(key, current_user.id) for key in keys]
+        session.execute(delete(User).where(User.id == current_user.id))
+        for path in paths:
+            path.unlink(missing_ok=True)
+        session.commit()
+    except (OSError, ValueError) as error:
+        session.rollback()
+        raise HTTPException(503, "Private data deletion could not be completed. Please retry.") from error

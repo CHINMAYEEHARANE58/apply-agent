@@ -1,40 +1,66 @@
-# InternAgent Architecture
+# InternAgent architecture
 
-## Trust boundaries
+Updated2026-10-14 after release-path fixes. See COMPLETE_TEST_REPORT.md.
 
-```text
-Browser -> Clerk sign-in + resource-level Next.js page guards
-        -> same-origin allowlisted proxy (server-side Clerk session token)
-        -> HTTPS/CORS/rate-limit middleware -> verified Clerk JWT boundary
-        -> owner-scoped API routers -> SQLAlchemy parameterized persistence
-        -> encrypted resume/fact storage
+## Runtime modules and boundaries
 
-SQLAlchemy -> Neon pooled TLS connection (application queries)
-Alembic -> Neon direct TLS connection (versioned migrations)
+Browser → Clerk → guarded Next pages → same-origin allowlisted proxy
+→ bearer-only FastAPI authentication → owner-scoped services → SQLAlchemy/Postgres.
 
-Untrusted job/email/site text -> normalization/matching only -> reviewable drafts
-                                                    X no tool execution
-                                                    X no secret access
-                                                    X no application submission
+Existing Clerk, SQLAlchemy and psycopg are retained. Normal app queries use the
+configured pooled TLS connection; migrations use the direct connection. QA uses
+a separate disposable local database and never writes fixtures to normal Neon.
 
-Draft -> deterministic ApplicationPolicyService -> authorized executor OR assisted/manual handoff
-```
+- settings: durable timezone/search/limits/source choices, synchronized with preferences.
+- dashboard: real owner aggregates; authenticated manual search trigger.
+- jobs/state: private save/ignore/restore and paginated candidate listings.
+- scheduler/pipeline: persisted daily runs, normalization/dedup, hard filters,
+  verified-fact scoring, tailored artifacts/drafts, policy review and safe audits.
+- resumes: immutable master versions, encrypted facts/parsed data/artifacts,
+  factual approval and authenticated private attachment downloads.
+- applications: private tracker and atomic package approval using stored
+  references and current server-recomputed matches.
 
-## Security decisions
+## Daily data flow
 
-- Candidate facts are derived only from locked master-resume versions and explicitly supplied profile data.
-- Resume artifacts use authenticated encryption and opaque internal storage references. API responses omit file references.
-- All user-owned reads/writes are constrained by authenticated `user_id`; absent/foreign records return non-enumerating not-found responses.
-- `SourceCapability` and `ApplicationPolicyService` are the mandatory authorization boundary before any future submitter.
-- Job descriptions, company text, messages, questions, and email text are untrusted data. No AI module has direct database, shell, URL, or submission access.
+Preferences + latest locked master facts + stored permitted catalogue
+→ normalize/deduplicate/persist original URLs
+→ deterministic hard filters
+→ score verified facts against untrusted listing data
+→ threshold and persisted preparation quota
+→ verified tailored HTML/PDF and source-supported writing
+→ deterministic policy check
+→ awaiting user review
+→ durable audit summary.
 
-## Deployment boundaries
+A PostgreSQL user-row transaction lock spans preparation. A unique user/local-
+date run record and unique user/job application enforce restart/retry safety.
+Celery handles bounded temporary retries; authorization failures are not retried.
+Beat checks per-user timezones. Actual delivery/outbox/multi-host recovery is
+not certified by native QA.
 
-The current repository is a foundation, not a production integration deployment.
-Clerk sign-in/JWT validation is implemented; the provider keys/issuer and live
-identity tests remain required. Neon development storage is provisioned and
-migrated. The UI forms still use earlier mocks and must be connected to the
-authenticated API. Before release, add managed secret delivery, Redis-shared
-limits and locks, cloud private storage, audit retention/deletion workflows, and
-reviewed source/API integrations. Employer OAuth token storage is a separate future
-integration: there is currently no employer OAuth refresh-token store.
+## Security
+
+Descriptions, websites, email text, questions and uploaded content remain data,
+never instructions/tool authority. No model gets shell, SQL, arbitrary URL,
+secret or submission tools. Desired technologies are not verified skills.
+Ordinary users cannot alter shared catalogue listings or source authorization.
+
+Private bytes/facts/artifacts use authenticated encryption with environment-
+supplied key material. Production middleware uses Redis-shared atomic limits,
+fails closed on Redis failure and requires HTTPS. Cookie-proxy mutations require
+exact-origin checks; backend receives verified bearer tokens, not browser cookies.
+Outputs are encoded, requests bounded and user IDs derived from authentication.
+
+## Limits before deployment
+
+No live source fetcher, LLM provider, email sender or authorized submission client
+is configured. Catalogue discovery is real DB work, not live website search.
+All new packages remain for review/manual handoff, including authorized-auto mode.
+Successful external submission/idempotency/quota reservation still needs a
+reviewed integration; current application metadata is not a provider receipt.
+
+Live Clerk lifecycle/cookie testing, Docker builds, secret-manager/key rotation,
+future OAuth envelope encryption, object-storage signed links, export/retention/
+atomic deletion and comprehensive PDF/UI verification remain deployment work.
+Migration0007 is tested locally but has not modified the existing Neon database.

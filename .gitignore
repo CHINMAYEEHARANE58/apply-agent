@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+!.env.qa.example
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -13,6 +14,9 @@ node_modules/
 .next/
 dist/
 coverage/
+test-results/
+playwright-report/
+qa-artifacts/
 *.tsbuildinfo
 postgres-data/
 redis-data/

@@ -35,5 +35,9 @@ async def database_exception_handler(_: Request, exc: Exception) -> JSONResponse
     return error_response(503, "database_unavailable", "Unable to access your data. Please try again.")
 
 
+async def response_exception_handler(_: Request, exc: Exception) -> JSONResponse:
+    return error_response(500, "internal_error", "Unable to return the requested data.")
+
+
 def not_found(entity: str) -> HTTPException:
     return HTTPException(status_code=404, detail=f"{entity} was not found.")

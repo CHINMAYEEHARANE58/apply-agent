@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from "@clerk/nextjs";
+import { shadcn } from "@clerk/ui/themes";
 import { clerkIsConfigured } from "../lib/auth-config";
 import "./globals.css";
 
@@ -9,5 +10,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{clerkIsConfigured() ? <ClerkProvider afterSignOutUrl="/login" signInUrl="/login" signUpUrl="/sign-up" signInFallbackRedirectUrl="/dashboard" signUpFallbackRedirectUrl="/onboarding">{children}</ClerkProvider> : children}</body></html>;
+  return <html lang="en"><body>{clerkIsConfigured() ? <ClerkProvider appearance={{ theme: shadcn }} afterSignOutUrl="/login" signInUrl="/login" signUpUrl="/sign-up" signInFallbackRedirectUrl="/dashboard" signUpFallbackRedirectUrl="/onboarding">{children}</ClerkProvider> : children}</body></html>;
 }

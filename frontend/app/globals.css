@@ -1,8 +1,26 @@
+@import '@clerk/ui/themes/shadcn.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: dark; }
+:root {
+  color-scheme: dark;
+  --card: #101016;
+  --card-foreground: #f1f5f9;
+  --foreground: #f1f5f9;
+  --primary: #8b5cf6;
+  --primary-foreground: #ffffff;
+  --input: #1e293b;
+  --muted: #1e293b;
+  --muted-foreground: #94a3b8;
+  --destructive: #f87171;
+  --ring: #8b5cf6;
+  --color-black: #000000;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+}
 * { @apply border-slate-800; }
 body { @apply m-0 min-h-screen bg-[#09090b] text-slate-100 antialiased; }
 button, input, select { font: inherit; }

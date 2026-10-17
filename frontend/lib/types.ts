@@ -15,6 +15,6 @@ export type ApplicationStatus = "Discovered" | "Matched" | "Prepared" | "Awaitin
 export type ApplicationMode = "review" | "batch" | "authorized-auto";
 
 export interface DashboardMetric { label: string; value: string; change: string; icon: string; }
-export interface Job { id: string; role: string; company: string; location: string; duration: string; stipend: string; source: string; match: number; skills: string[]; missingSkills: string[]; postedDate: string; status: ApplicationStatus; remote: boolean; saved?: boolean; ignored?: boolean; url?: string; }
+export interface Job { id: string; role: string; company: string; location: string; duration: string; stipend: string; source: string; match: number; skills: string[]; missingSkills: string[]; postedDate: string; status: ApplicationStatus; remote: boolean; saved?: boolean; ignored?: boolean; url?: string; fit?: "eligible" | "rejected" | "unchecked"; matchExplanation?: string; }
 export interface Application { id: string; company: string; role: string; status: ApplicationStatus; updatedAt: string; match: number; }
 export interface Resume { id: string; name: string; kind: "Master" | "Tailored"; updatedAt: string; targetedRole: string; }

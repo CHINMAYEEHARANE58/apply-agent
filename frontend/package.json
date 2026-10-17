@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --hostname localhost",
     "build": "next build",
+    "build:vercel": "node scripts/check-deployment.mjs && next build",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

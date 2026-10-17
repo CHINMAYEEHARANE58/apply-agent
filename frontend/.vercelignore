@@ -1,0 +1,10 @@
+.env*
+.clerk
+.vercel
+.next
+node_modules
+coverage
+playwright-report
+test-results
+qa-artifacts
+*.log

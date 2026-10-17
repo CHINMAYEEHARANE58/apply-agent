@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, BriefcaseBusiness, FileText, LayoutDashboard, Menu, Search, Settings, Sparkles, X } from "lucide-react";
+import { Bell, BriefcaseBusiness, FileText, LayoutDashboard, Menu, Search, Settings, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { cn } from "../lib/utils";
 import { clerkIsConfigured } from "../lib/auth-config";
@@ -11,6 +11,7 @@ import { AccountAvatar, AccountGreeting, AccountSignOut, AccountSync } from "./c
 const navigation = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/jobs", label: "Jobs", icon: Search },
+  { href: "/preferences", label: "Preferences", icon: SlidersHorizontal },
   { href: "/applications", label: "Applications", icon: BriefcaseBusiness },
   { href: "/resumes", label: "Resumes", icon: FileText },
   { href: "/settings", label: "Settings", icon: Settings }
@@ -31,7 +32,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <aside className={cn("fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-slate-800/80 bg-[#0c0c10] p-4 transition-transform lg:translate-x-0", open ? "translate-x-0" : "-translate-x-full")}>
       <div className="mb-8 flex items-center justify-between px-2"><Link href="/dashboard" className="flex items-center gap-2 text-lg font-semibold tracking-tight text-white"><span className="grid h-8 w-8 place-items-center rounded-xl bg-violet-500 shadow-lg shadow-violet-900/40"><Sparkles size={16} /></span>InternAgent</Link><button aria-label="Close navigation" className="text-slate-400 lg:hidden" onClick={() => setOpen(false)}><X size={20} /></button></div>
       <NavItems onNavigate={() => setOpen(false)} />
-      <div className="mt-auto rounded-2xl border border-violet-500/15 bg-violet-500/[0.07] p-4"><p className="text-sm font-medium text-violet-100">Daily search is ready</p><p className="mt-1 text-xs leading-5 text-slate-400">Your next scheduled search runs tomorrow at 9:00 AM.</p></div>
+      <div className="mt-auto rounded-2xl border border-violet-500/15 bg-violet-500/[0.07] p-4"><p className="text-sm font-medium text-violet-100">Your search, your control</p><p className="mt-1 text-xs leading-5 text-slate-400">Run a search from the dashboard. Scheduled searches require the background worker and scheduler.</p></div>
       {clerkIsConfigured() ? <AccountSignOut /> : <Link className="p-3 text-sm text-slate-400" href="/login">Sign in</Link>}
     </aside>
     <div className="lg:pl-72"><header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-800/70 bg-[#09090b]/75 px-5 backdrop-blur lg:px-10"><button aria-label="Open navigation" className="text-slate-300 lg:hidden" onClick={() => setOpen(true)}><Menu size={22} /></button><div className="hidden text-sm text-slate-500 sm:block">{clerkIsConfigured() ? <AccountGreeting /> : "InternAgent workspace"}</div><div className="ml-auto flex items-center gap-3"><button aria-label="Notifications" className="relative grid h-9 w-9 place-items-center rounded-xl text-slate-400 hover:bg-slate-800"><Bell size={18} /><span className="absolute right-2.5 top-2.5 h-1.5 w-1.5 rounded-full bg-violet-400" /></button>{clerkIsConfigured() ? <AccountAvatar /> : null}</div></header>

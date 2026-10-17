@@ -33,9 +33,9 @@ function mockApi(responses: Record<string, unknown>) {
 
 describe("persistent screens use authenticated API data, never production mocks", () => {
   it("dashboard displays zero counts and runs the backend search", async () => {
-    const request = mockApi({ dashboard: { jobs_discovered_today: 0, strong_matches: 0, applications_prepared: 0, applications_submitted: 0, interviews: 0, responses: 0 }, "jobs/mine?limit=2": page([]), "dashboard/search": { status: "completed", jobs_evaluated: 0, applications_prepared: 0 } });
+    const request = mockApi({ dashboard: { jobs_discovered_today: 0, strong_matches: 0, applications_prepared: 0, applications_submitted: 0, interviews: 0, responses: 0 }, "jobs/mine?limit=2&eligible_only=true": page([]), "dashboard/search": { status: "completed", jobs_evaluated: 0, applications_prepared: 0 } });
     render(<Dashboard />);
-    await screen.findByText(/No imported listings yet/);
+    await screen.findByText(/No jobs currently meet your mandatory preferences/);
     expect(screen.getAllByText("0")).toHaveLength(6);
     await userEvent.click(screen.getByRole("button", { name: "Run job search" }));
     await screen.findByText(/No external submission/);
@@ -46,6 +46,18 @@ describe("persistent screens use authenticated API data, never production mocks"
     render(<Dashboard />);
     await screen.findAllByRole("alert");
     expect(screen.queryByText("24")).toBeNull();
+  });
+  it("dashboard permits two consecutive manual searches and explains caching", async () => {
+    const request = mockApi({ dashboard: { jobs_discovered_today: 1, strong_matches: 0, applications_prepared: 0, applications_submitted: 0, interviews: 0, responses: 0 }, "jobs/mine?limit=2&eligible_only=true": page([]), "dashboard/search-status": { live_discovery_enabled: true, boards: ["Stripe"], selected_roles: ["Software Engineering Intern"], manual_search_limit: 100, public_cache_seconds: 3600, last_search: null }, "dashboard/search": { status: "completed", trigger: "manual", jobs_evaluated: 7, applications_prepared: 0 } });
+    render(<Dashboard />);
+    await screen.findByText(/Selected roles: Software Engineering Intern/);
+    expect(screen.getByText(/Public boards are cached for up to one hour/)).toBeTruthy();
+    for (let i = 0; i < 2; i++) {
+      await userEvent.click(screen.getByRole("button", { name: "Run job search" }));
+      await screen.findByText(/7 role-relevant listings evaluated.*run another search whenever you like/);
+      await waitFor(() => expect((screen.getByRole("button", { name: "Run job search" }) as HTMLButtonElement).disabled).toBe(false));
+    }
+    expect(request.mock.calls.filter(([url, options]) => String(url).endsWith("dashboard/search") && options?.method === "POST")).toHaveLength(2);
   });
   it("settings read existing values and persist edits without sending user_id", async () => {
     const request = mockApi({ "settings/me": settings });
@@ -61,11 +73,30 @@ describe("persistent screens use authenticated API data, never production mocks"
     expect(payload).not.toHaveProperty("authorization_verified");
   });
   it("jobs persist save state to the owner-scoped endpoint", async () => {
-    const request = mockApi({ "jobs/mine?limit=20&offset=0&include_ignored=false": page([job]), "jobs/job-1/state": { saved: true, ignored: false } });
+    const request = mockApi({ "jobs/mine?limit=20&offset=0&include_ignored=false&eligible_only=true": page([job]), "jobs/job-1/state": { saved: true, ignored: false } });
     render(<Jobs />);
     await screen.findByText("Real Fixture");
     await userEvent.click(screen.getByRole("button", { name: "Save job" }));
     await waitFor(() => expect(request.mock.calls.some(([url, options]) => String(url).endsWith("job-1/state") && (options as RequestInit).method === "PATCH")).toBe(true));
+  });
+  it("jobs search replays saved counts rather than reporting zero", async () => {
+    mockApi({ "jobs/mine?limit=20&offset=0&include_ignored=false&eligible_only=true": page([job]), "dashboard/search": { status: "already_completed", jobs_evaluated: 0, applications_prepared: 0, previous_summary: { status: "completed", jobs_evaluated: 37, strong_matches: 0, applications_prepared: 0 } } });
+    render(<Jobs />);
+    await screen.findByText("Real Fixture");
+    await userEvent.click(screen.getByRole("button", { name: "Run job search" }));
+    await screen.findByText(/already ran.*37 listings evaluated/);
+    expect(screen.getByRole("heading", { name: "Internship opportunities" })).toBeTruthy();
+  });
+  it("public source opt-in preserves limits, mode and independent catalogue selection", async () => {
+    const request = mockApi({ "settings/me": settings });
+    render(<Settings />);
+    await screen.findByLabelText("Search time");
+    await userEvent.click(screen.getByRole("checkbox", { name: "Public employer boards (Greenhouse API)" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Imported catalogue (manual handoff only)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save settings" }));
+    await screen.findByText(/Settings saved/);
+    const write = request.mock.calls.find(([, options]) => (options as RequestInit)?.method === "PUT");
+    expect(JSON.parse((write?.[1] as RequestInit).body as string)).toMatchObject({ enabled_sources: ["greenhouse_public"], application_mode: "review", minimum_match_score: 75, max_daily_applications: 10 });
   });
   it("failed save keeps the old card state and shows the error", async () => {
     const failed = vi.fn(async () => { throw new Error("Save rejected"); });

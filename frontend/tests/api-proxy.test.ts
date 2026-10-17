@@ -13,7 +13,7 @@ describe("Clerk authenticated backend proxy", () => {
     vi.stubEnv("INTERNAGENT_API_URL", "https://api.example/api/v1");
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response('{}', { headers: { "content-type": "application/json" } })));
   });
-  afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
   it("fails closed when sign-in configuration is absent", async () => {
     vi.stubEnv("NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY", "");
     expect((await GET(new Request("https://app.example/api/backend/users/me"), context())).status).toBe(503);
@@ -22,6 +22,11 @@ describe("Clerk authenticated backend proxy", () => {
   it("does not forward unauthenticated users", async () => {
     identity.userId = null;
     expect((await GET(new Request("https://app.example/api/backend/users/me"), context())).status).toBe(401);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+  it("does not fall back to localhost on Vercel when the backend URL is absent", async () => {
+    vi.stubEnv("VERCEL", "1"); vi.stubEnv("INTERNAGENT_API_URL", "");
+    expect((await GET(new Request("https://app.example/api/backend/users/me"), context())).status).toBe(503);
     expect(fetch).not.toHaveBeenCalled();
   });
   it("rejects cross-origin and missing-origin mutations", async () => {
@@ -59,5 +64,23 @@ describe("Clerk authenticated backend proxy", () => {
     const response = await GET(new Request("https://app.example/api/backend/users/me"), context());
     expect(response.status).toBe(503);
     expect(await response.text()).not.toContain("credential");
+  });
+  it("gives only the search POST a bounded two-minute deadline", async () => {
+    const deadline = vi.spyOn(AbortSignal, "timeout");
+    const request = new Request("https://app.example/api/backend/dashboard/search", { method: "POST", headers: { origin: "https://app.example" } });
+    expect((await POST(request, context(["dashboard", "search"]))).status).toBe(200);
+    expect(deadline).toHaveBeenLastCalledWith(120000);
+    await GET(new Request("https://app.example/api/backend/users/me"), context());
+    expect(deadline).toHaveBeenLastCalledWith(30000);
+  });
+  it("explains a search timeout without exposing upstream errors or retrying it", async () => {
+    vi.mocked(fetch).mockRejectedValue(new DOMException("private upstream detail", "TimeoutError"));
+    const request = new Request("https://app.example/api/backend/dashboard/search", { method: "POST", headers: { origin: "https://app.example" } });
+    const response = await POST(request, context(["dashboard", "search"]));
+    expect(response.status).toBe(504);
+    const text = await response.text();
+    expect(text).toContain("refresh the dashboard");
+    expect(text).not.toContain("private upstream detail");
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 });
